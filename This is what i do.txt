@@ -1,0 +1,104 @@
+
+Automated Tag Creator V5 by Andrew Regan
+Date: 2025-12-23
+
+============================================================
+1) What this app does
+============================================================
+• Generates tag PDFs from a CSV input (one label per page). 
+• Configurable label size (in), fonts (built-in or TTF), per-line sizes/heights, colors, and rivet holes (2 or 4). 
+• Units toggle (Inches/Points). 
+• Templates (save/load JSON). 
+• NEW: Preview from CSV (first row) + Header Mapping UI + CTkImage-based preview (no HiDPI warning).
+
+============================================================
+2) Prerequisites on Windows
+============================================================
+• Python 3.11 or 3.12 installed. (Don’t use the Store build if possible; prefer python.org installer.)
+• Visual Studio Code (optional, recommended).
+
+============================================================
+3) One-time setup (virtual environment + dependencies)
+============================================================
+Open PowerShell in the project folder (the folder containing "Automated Tag Creator V5 by Andrew Regan.py") and run:
+
+    python -m venv .venv
+    .\.venv\Scripts\activate
+    python -m pip install --upgrade pip
+    python -m pip install customtkinter pandas reportlab pillow pyinstaller
+
+(Why these?)
+• customtkinter: modern UI widgets.
+• pandas: CSV loading (robust delimiter/BOM handling). 
+• reportlab: PDF generation. 
+• pillow: image handling for preview.
+• pyinstaller: package to a one-file EXE. 
+
+============================================================
+4) Run the script from source (test before packaging)
+============================================================
+Still in the activated venv:
+
+    python "Automated Tag Creator V5 by Andrew Regan.py"
+
+In the GUI:
+• Set Label width/height (in) to non-zero (e.g., 6 and 3). 
+• Pick Input CSV and Output PDF. 
+• (Optional) Set per-line sizes/heights and Units (Inches or Points). 
+• (Optional) Holes: enable, choose 2 or 4, set hole size and edge margin.
+• (Optional) Header Mapping: choose which CSV column maps to each line or leave <auto>.
+• Toggle "Preview from CSV" to validate the first row visually. 
+• Click Generate PDF.
+
+============================================================
+5) Package a one-click EXE
+============================================================
+A) Simple build (one-file, windowed):
+
+    pyinstaller --noconfirm --onefile --windowed "Automated Tag Creator V5 by xxxxxxxxx.py"
+
+Output appears in the `dist` folder as:
+    dist\Automated Tag Creator V5 by xxxxxxxxxx.exe
+
+B) Optional flags:
+• --name "Automated Tag Creator V5 by Andrew Regan"
+• --icon path\to\icon.ico
+• --clean (clear cache before building)
+
+C) Notes:
+• PyInstaller builds on the same OS you target; build Windows EXE on Windows. 
+• If fonts or external files are embedded, use `--add-data` and handle `_MEIPASS` paths.
+
+============================================================
+6) Troubleshooting tips
+============================================================
+• Blank PDF: ensure label width/height > 0; ensure font sizes not all zero (the generator auto-falls back to 12pt if any line is 0). 
+• CSV not read: confirm the path; the app auto-detects delimiter (comma/semicolon/tab) and removes BOM; use Header Mapping if column names differ. 
+• Interpreter mismatch: in VS Code, select the venv (Ctrl+Shift+P → Python: Select Interpreter) and reload window.
+• CTkImage warning: eliminated—preview uses CTkImage.
+• PyInstaller missing command: reinstall with `python -m pip install pyinstaller` and run from the venv.
+
+============================================================
+7) What’s inside the app (key design points)
+============================================================
+• We read CSV via pandas with: `sep=None, engine="python", encoding='utf-8-sig'`, then strip headers—this infers delimiter and removes BOM. 
+• For each output line i, we map text from:
+  1) Header Mapping selection; else 
+  2) Name variants: Line{i}, Line {i}, line_{i}, LINE{i}, LINE {i}; else 
+  3) Positional fallback: the first N columns. 
+• Preview shows actual first row when "Preview from CSV" is ON; else placeholder text.
+• CTkImage replaces PhotoImage to avoid high DPI scaling warnings.
+• True-zero launch is preserved; generator silently upgrades 0-pt sizes to 12pt so output isn’t invisible.
+
+============================================================
+8) One-click build script
+============================================================
+In this folder, run `build_exe.bat` (created next to this file). It will:
+• Create/activate `.venv`
+• Install dependencies
+• Build the EXE under `dist/`
+
+============================================================
+9) Contact / Owner
+============================================================
+Andrew Regan — Field Engineer.
