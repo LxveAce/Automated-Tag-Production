@@ -8,7 +8,7 @@ Only the latest commit on the default branch is actively maintained. No backport
 
 If you discover a security vulnerability in this project, please report it responsibly:
 
-- **Email:** extrafadexd@gmail.com
+- **Email:** lxveace@proton.me
 - **Subject line:** `[SECURITY] Automated-Tag-Production — <brief description>`
 
 Please include:
