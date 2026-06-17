@@ -1,5 +1,5 @@
 
-Automated Tag Creator V5 by Andrew Regan
+Automated Tag Creator V5 by LxveAce
 Date: 2025-12-23
 
 ============================================================
@@ -20,7 +20,7 @@ Date: 2025-12-23
 ============================================================
 3) One-time setup (virtual environment + dependencies)
 ============================================================
-Open PowerShell in the project folder (the folder containing "Automated Tag Creator V5 by Andrew Regan.py") and run:
+Open PowerShell in the project folder (the folder containing "Automated Tag Creator V5 by LxveAce.py") and run:
 
     python -m venv .venv
     .\.venv\Scripts\activate
@@ -39,7 +39,7 @@ Open PowerShell in the project folder (the folder containing "Automated Tag Crea
 ============================================================
 Still in the activated venv:
 
-    python "Automated Tag Creator V5 by Andrew Regan.py"
+    python "Automated Tag Creator V5 by LxveAce.py"
 
 In the GUI:
 • Set Label width/height (in) to non-zero (e.g., 6 and 3). 
@@ -61,7 +61,7 @@ Output appears in the `dist` folder as:
     dist\Automated Tag Creator V5 by xxxxxxxxxx.exe
 
 B) Optional flags:
-• --name "Automated Tag Creator V5 by Andrew Regan"
+• --name "Automated Tag Creator V5 by LxveAce"
 • --icon path\to\icon.ico
 • --clean (clear cache before building)
 
@@ -101,4 +101,4 @@ In this folder, run `build_exe.bat` (created next to this file). It will:
 ============================================================
 9) Contact / Owner
 ============================================================
-Andrew Regan — Field Engineer.
+LxveAce — Field Engineer.

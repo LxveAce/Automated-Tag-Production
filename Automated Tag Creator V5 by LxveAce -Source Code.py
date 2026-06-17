@@ -1,5 +1,5 @@
 
-# Automated Tag Creator V5 by Andrew Regan
+# Automated Tag Creator V5 by LxveAce
 # Requires: customtkinter, pandas, reportlab, pillow
 # Install: python -m pip install customtkinter pandas reportlab pillow
 import os
@@ -288,7 +288,7 @@ class TagApp(ctk.CTk):
         super().__init__()
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
-        self.title("Automated Tag Creator V5 by Andrew Regan")
+        self.title("Automated Tag Creator V5 by LxveAce")
         self.geometry("1220x920")
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -340,7 +340,7 @@ class TagApp(ctk.CTk):
 
     def _build_ui(self):
         pad_x, pad_y = 8, 6
-        ctk.CTkLabel(self.scroll, text="Automated Tag Creator V5 by Andrew Regan",
+        ctk.CTkLabel(self.scroll, text="Automated Tag Creator V5 by LxveAce",
                      font=("Segoe UI", 20, "bold")).grid(row=0, column=0, columnspan=8, sticky="w", padx=pad_x, pady=pad_y)
         # Units segmented button
         ctk.CTkLabel(self.scroll, text="Units:").grid(row=0, column=6, sticky="e", padx=pad_x, pady=pad_y)

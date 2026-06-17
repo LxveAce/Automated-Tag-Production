@@ -49,7 +49,7 @@ python -m pip install --upgrade pip
 python -m pip install customtkinter pandas reportlab pillow pyinstaller
 
 # 4. Run
-python "Automated Tag Creator V5 by Andrew Regan -Source Code.py"
+python "Automated Tag Creator V5 by LxveAce -Source Code.py"
 ```
 
 ---
@@ -83,8 +83,8 @@ The app accepts any delimiter (comma, semicolon, tab) with or without a UTF-8 BO
 ```powershell
 # Inside the activated venv:
 pyinstaller --noconfirm --onefile --windowed `
-    --name "Automated Tag Creator V5 by Andrew Regan" `
-    "Automated Tag Creator V5 by Andrew Regan -Source Code.py"
+    --name "Automated Tag Creator V5 by LxveAce" `
+    "Automated Tag Creator V5 by LxveAce -Source Code.py"
 ```
 
 The executable appears in the `dist\` folder. Optional flags:
