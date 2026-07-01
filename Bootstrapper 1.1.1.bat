@@ -2,7 +2,7 @@
 @echo off
 setlocal enableextensions
 
-set "APP_PY=Automated Tag Creator V5 by LxveAce.py"
+set "APP_PY=Automated Tag Creator V5 by LxveAce -Source Code.py"
 set "APP_NAME=Automated Tag Creator V5 by LxveAce"
 set "VENV_DIR=.venv"
 set "PYTHONNOUSERSITE=1"
