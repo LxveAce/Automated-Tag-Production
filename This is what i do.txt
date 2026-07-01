@@ -20,7 +20,7 @@ Date: 2025-12-23
 ============================================================
 3) One-time setup (virtual environment + dependencies)
 ============================================================
-Open PowerShell in the project folder (the folder containing "Automated Tag Creator V5 by LxveAce.py") and run:
+Open PowerShell in the project folder (the folder containing "Automated Tag Creator V5 by LxveAce -Source Code.py") and run:
 
     python -m venv .venv
     .\.venv\Scripts\activate
@@ -39,7 +39,7 @@ Open PowerShell in the project folder (the folder containing "Automated Tag Crea
 ============================================================
 Still in the activated venv:
 
-    python "Automated Tag Creator V5 by LxveAce.py"
+    python "Automated Tag Creator V5 by LxveAce -Source Code.py"
 
 In the GUI:
 • Set Label width/height (in) to non-zero (e.g., 6 and 3). 
@@ -93,7 +93,7 @@ C) Notes:
 ============================================================
 8) One-click build script
 ============================================================
-In this folder, run `build_exe.bat` (created next to this file). It will:
+In this folder, run `Bootstrapper 1.1.1.bat` (next to this file). It will:
 • Create/activate `.venv`
 • Install dependencies
 • Build the EXE under `dist/`
