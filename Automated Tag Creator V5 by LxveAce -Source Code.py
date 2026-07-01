@@ -105,9 +105,12 @@ def parse_hex_color(hex_str: str) -> Tuple[float, float, float]:
         s = "".join([ch*2 for ch in s])
     if len(s) != 6:
         return (0.0, 0.0, 0.0)  # fallback black
-    r = int(s[0:2], 16) / 255.0
-    g = int(s[2:4], 16) / 255.0
-    b = int(s[4:6], 16) / 255.0
+    try:
+        r = int(s[0:2], 16) / 255.0
+        g = int(s[2:4], 16) / 255.0
+        b = int(s[4:6], 16) / 255.0
+    except ValueError:
+        return (0.0, 0.0, 0.0)  # fallback black on non-hex characters
     return (r, g, b)
 
 def _to_float(val) -> float:
@@ -750,7 +753,10 @@ class TagApp(ctk.CTk):
                     h = "".join(ch*2 for ch in h)
                 if len(h) != 6:
                     return (0,0,0)
-                return (int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
+                try:
+                    return (int(h[0:2],16), int(h[2:4],16), int(h[4:6],16))
+                except ValueError:
+                    return (0,0,0)
 
             outline_rgb255 = hex_to_rgb255(self.outline_color.get().strip() or "#000000")
             bg_rgb255 = hex_to_rgb255(self.background_color.get().strip() or "#FFFFFF")
