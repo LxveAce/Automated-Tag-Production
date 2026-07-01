@@ -153,9 +153,27 @@ def ensure_font(font_name: str = "Helvetica", font_path: Optional[str] = None) -
 # ----------------------------
 # CSV intake / map
 # ----------------------------
+def _sniff_delimiter(path: str) -> str:
+    """Pick a delimiter from a restricted candidate set by counting occurrences
+    in the header line, defaulting to comma. This avoids csv.Sniffer's habit of
+    mis-detecting a delimiter in single-column files (e.g. sniffing 'm' out of a
+    'Name' header and shredding the column)."""
+    candidates = [",", ";", "\t", "|"]
+    try:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            header = f.readline()
+    except Exception:
+        return ","
+    counts = {d: header.count(d) for d in candidates}
+    best = max(candidates, key=lambda d: counts[d])
+    return best if counts[best] > 0 else ","
+
 def robust_read_csv(path: str) -> pd.DataFrame:
-    # delimiter inference + BOM stripping + header normalization
-    df = pd.read_csv(path, sep=None, engine="python", encoding='utf-8-sig')
+    # delimiter inference (restricted, single-column-safe) + BOM stripping +
+    # header normalization. dtype=str keeps label text verbatim so identifiers
+    # like "007" or "1.50" are not silently reformatted by pandas type inference.
+    sep = _sniff_delimiter(path)
+    df = pd.read_csv(path, sep=sep, engine="python", encoding="utf-8-sig", dtype=str)
     df.columns = [str(c).strip() for c in df.columns]
     return df
 

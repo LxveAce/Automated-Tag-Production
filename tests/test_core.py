@@ -78,6 +78,40 @@ def test_robust_read_csv_strips_bom(tag, tmp_path):
     assert list(df.columns) == ["Line1", "Line2"]
 
 
+def test_robust_read_csv_preserves_verbatim_text(tag, tmp_path):
+    # Regression: pandas type inference used to turn "007" into 7 and "1.50"
+    # into 1.5, silently altering the text printed on the label. Reading as
+    # str keeps identifiers/part numbers exact.
+    p = tmp_path / "parts.csv"
+    p.write_text("Line1,Line2\n007,1.50\n0012,00\n", encoding="utf-8")
+    df = tag.robust_read_csv(str(p))
+    assert tag.pick_text_for_line(df, df.iloc[0], 0, "<auto>") == "007"
+    assert tag.pick_text_for_line(df, df.iloc[0], 1, "<auto>") == "1.50"
+    assert tag.pick_text_for_line(df, df.iloc[1], 0, "<auto>") == "0012"
+    assert tag.pick_text_for_line(df, df.iloc[1], 1, "<auto>") == "00"
+
+
+def test_robust_read_csv_single_column(tag, tmp_path):
+    # Regression: the csv.Sniffer (sep=None) mis-detected a delimiter inside a
+    # single-column file, shredding "Name" into columns ['Na', 'e'] and
+    # splitting each value. A single-column CSV must stay intact.
+    p = tmp_path / "single.csv"
+    p.write_text("Name\nAlice\nBob\n", encoding="utf-8")
+    df = tag.robust_read_csv(str(p))
+    assert list(df.columns) == ["Name"]
+    assert len(df) == 2
+    assert tag.pick_text_for_line(df, df.iloc[0], 0, "<auto>") == "Alice"
+
+
+def test_robust_read_csv_missing_cell_still_empty(tag, tmp_path):
+    # dtype=str must not turn a blank cell into the literal "nan"; it should
+    # remain missing so pick_text_for_line renders "".
+    p = tmp_path / "gap.csv"
+    p.write_text("Line1,Line2\nAlice,\n", encoding="utf-8")
+    df = tag.robust_read_csv(str(p))
+    assert tag.pick_text_for_line(df, df.iloc[0], 1, "<auto>") == ""
+
+
 # --------------------------------------------------------------------------
 # pick_text_for_line
 # --------------------------------------------------------------------------
