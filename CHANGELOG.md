@@ -31,6 +31,14 @@ The application version is single-sourced as `__version__` in
   the source.
 - Corrected stale references in `This is what i do.txt`: the nonexistent
   `build_exe.bat` and the run command missing the `-Source Code` suffix.
+- `robust_read_csv` now reads every column as text (`dtype=str`), so label
+  identifiers such as `007` or `1.50` print verbatim instead of being
+  reformatted (to `7` / `1.5`) by pandas type inference; blank cells still
+  render as empty lines.
+- `robust_read_csv` no longer shreds single-column CSVs. Delimiter detection
+  now uses a restricted header-based sniff (comma/semicolon/tab/pipe) that
+  falls back to comma, replacing `csv.Sniffer`, which mis-detected a delimiter
+  inside single-column files (e.g. splitting `Name` into `['Na', 'e']`).
 
 ### Changed
 - Simplified the vestigial multi-tile page bookkeeping in `generate_labels` to
