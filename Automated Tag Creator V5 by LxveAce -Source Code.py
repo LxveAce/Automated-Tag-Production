@@ -243,13 +243,10 @@ def generate_labels(
         hexv = (line_colors_hex[i] if line_colors_hex and i < len(line_colors_hex) else "#000000")
         return parse_hex_color(hexv)
 
-    x_offset = 0
-    y_offset = label_height
-
     for _, row in df.iterrows():
         num_lines = len(font_sizes_pts)
-        center_x = x_offset + label_width / 2
-        center_y = y_offset - label_height / 2
+        center_x = label_width / 2
+        center_y = label_height / 2
         # Vertical positions (points from center)
         y_positions = []
         for i in range(num_lines):
@@ -258,12 +255,12 @@ def generate_labels(
 
         # Fill + outline
         c.setFillColorRGB(*bg_rgb)
-        c.rect(x_offset, y_offset - label_height, label_width, label_height, fill=1, stroke=0)
+        c.rect(0, 0, label_width, label_height, fill=1, stroke=0)
         c.setStrokeColorRGB(*outline_rgb)
-        c.rect(x_offset, y_offset - label_height, label_width, label_height, fill=0, stroke=1)
+        c.rect(0, 0, label_width, label_height, fill=0, stroke=1)
 
         # Holes (optional)
-        draw_rivet_holes(y_offset)
+        draw_rivet_holes(label_height)
 
         # Text
         for i in range(num_lines):
@@ -282,11 +279,8 @@ def generate_labels(
 
             c.drawCentredString(center_x, y_positions[i], text)
 
-        # Next page
-        y_offset -= label_height
-        if y_offset <= 0:
-            c.showPage()
-            y_offset = label_height
+        # One label per page (page size equals label size)
+        c.showPage()
 
     c.save()
 
