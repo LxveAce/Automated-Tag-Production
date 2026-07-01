@@ -197,6 +197,9 @@ def generate_labels(
         raise ValueError("Label width/height must be > 0 inches.")
     # Read CSV (robust)
     df = robust_read_csv(input_file)
+    # Guard: a header-only / empty CSV would otherwise emit a 0-page, unopenable PDF
+    if df is None or len(df) == 0:
+        raise ValueError("CSV has no data rows.")
     use_font = ensure_font(font_name, font_path)
     label_width = label_width_in * inch
     label_height = label_height_in * inch
