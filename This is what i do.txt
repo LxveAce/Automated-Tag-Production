@@ -55,10 +55,10 @@ In the GUI:
 ============================================================
 A) Simple build (one-file, windowed):
 
-    pyinstaller --noconfirm --onefile --windowed "Automated Tag Creator V5 by xxxxxxxxx.py"
+    pyinstaller --noconfirm --onefile --windowed "Automated Tag Creator V5 by LxveAce -Source Code.py"
 
 Output appears in the `dist` folder as:
-    dist\Automated Tag Creator V5 by xxxxxxxxxx.exe
+    dist\Automated Tag Creator V5 by LxveAce -Source Code.exe
 
 B) Optional flags:
 • --name "Automated Tag Creator V5 by LxveAce"
@@ -81,11 +81,11 @@ C) Notes:
 ============================================================
 7) What’s inside the app (key design points)
 ============================================================
-• We read CSV via pandas with: `sep=None, engine="python", encoding='utf-8-sig'`, then strip headers—this infers delimiter and removes BOM. 
+• We read CSV via pandas with a restricted delimiter sniff (comma/semicolon/tab/pipe, default comma), engine="python", encoding='utf-8-sig', and dtype=str, then strip headers—this infers the delimiter, removes the BOM, and keeps every cell as verbatim text (so "007" stays "007").
 • For each output line i, we map text from:
   1) Header Mapping selection; else 
   2) Name variants: Line{i}, Line {i}, line_{i}, LINE{i}, LINE {i}; else 
-  3) Positional fallback: the first N columns. 
+  3) Positional fallback: the column at index i for line i.
 • Preview shows actual first row when "Preview from CSV" is ON; else placeholder text.
 • CTkImage replaces PhotoImage to avoid high DPI scaling warnings.
 • True-zero launch is preserved; generator silently upgrades 0-pt sizes to 12pt so output isn’t invisible.
