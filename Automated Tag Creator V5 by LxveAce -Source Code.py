@@ -2,6 +2,8 @@
 # Automated Tag Creator V5 by LxveAce
 # Requires: customtkinter, pandas, reportlab, pillow
 # Install: python -m pip install customtkinter pandas reportlab pillow
+import copy
+import csv
 import os
 import json
 import platform
@@ -66,41 +68,68 @@ def _settings_dir() -> str:
 def _settings_path() -> str:
     return os.path.join(_settings_dir(), "settings.json")
 
+def _backup_corrupt_settings(path: str, err: Exception) -> None:
+    """A settings.json that EXISTS but won't parse (truncated write, bad JSON, a
+    hand-edit) must not be silently discarded: move it aside to <path>.corrupt so
+    the next save can't overwrite the (possibly recoverable) original and the loss
+    is visible instead of silent. An absent file is a clean first run — no backup."""
+    try:
+        os.replace(path, path + ".corrupt")   # atomic move aside; frees the canonical path
+        print(f"Corrupt settings backed up to {path}.corrupt: {err}")
+    except Exception:
+        pass
+
 def load_settings() -> dict:
     path = _settings_path()
     if os.path.exists(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            out = DEFAULT_SETTINGS.copy()
+            # deepcopy: DEFAULT_SETTINGS holds mutable lists (header_map, line_colors,
+            # font_sizes, heights). A shallow .copy() aliases them, so the pad-loops
+            # below would mutate the module-global defaults in place. Deep-copy severs that.
+            out = copy.deepcopy(DEFAULT_SETTINGS)
             out.update(data or {})
             out["holes_count"] = 2 if out.get("holes_count") not in [2, 4] else out["holes_count"]
-            # ensure header_map length
-            hm = out.get("header_map") or []
-            if not isinstance(hm, list):
-                hm = []
+            # ensure header_map length (copy so the pad-loop never writes through a shared ref)
+            hm = out.get("header_map")
+            hm = list(hm) if isinstance(hm, list) else []
             while len(hm) < int(out.get("num_lines", 4)):
                 hm.append("<auto>")
             out["header_map"] = hm
             # NEW: ensure line_colors length
-            lc = out.get("line_colors") or []
-            if not isinstance(lc, list):
-                lc = []
+            lc = out.get("line_colors")
+            lc = list(lc) if isinstance(lc, list) else []
             while len(lc) < int(out.get("num_lines", 4)):
                 lc.append("#000000")
             out["line_colors"] = lc
             return out
-        except Exception:
-            pass
-    return DEFAULT_SETTINGS.copy()
+        except Exception as e:
+            _backup_corrupt_settings(path, e)
+    return copy.deepcopy(DEFAULT_SETTINGS)
 
-def save_settings(settings: dict) -> None:
+def save_settings(settings: dict) -> bool:
+    """Persist settings atomically. Returns True on success, False on failure so the
+    caller can surface a real error instead of a false 'saved' confirmation. Writes a
+    sibling temp file then os.replace()s it in, so a crash mid-write can never truncate
+    a good settings.json to zero bytes."""
     path = _settings_path()
+    tmp = path + ".tmp"
     try:
-        with open(path, "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)   # atomic on the same volume
+        return True
     except Exception as e:
         print(f"Could not save settings: {e}")
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except Exception:
+            pass
+        return False
 
 # ----------------------------
 # Helpers / safe parsing
@@ -154,44 +183,85 @@ def ensure_font(font_name: str = "Helvetica", font_path: Optional[str] = None) -
 # CSV intake / map
 # ----------------------------
 def _sniff_delimiter(path: str) -> str:
-    """Pick a delimiter from a restricted candidate set by counting occurrences
-    in the header line, defaulting to comma. This avoids csv.Sniffer's habit of
-    mis-detecting a delimiter in single-column files (e.g. sniffing 'm' out of a
-    'Name' header and shredding the column)."""
+    """Pick a delimiter from a restricted candidate set by parsing the header line
+    with the csv module (quote-aware) and preferring the delimiter that yields the
+    most fields, defaulting to comma. Unlike a raw character count this respects
+    quoting, so a comma inside a quoted header (e.g. `"Size, mm";Weight`) no longer
+    beats the real semicolon; and it still avoids csv.Sniffer's habit of
+    mis-detecting a delimiter in single-column files ('Name' stays one column)."""
     candidates = [",", ";", "\t", "|"]
-    try:
-        with open(path, "r", encoding="utf-8-sig", newline="") as f:
-            header = f.readline()
-    except Exception:
-        return ","
-    counts = {d: header.count(d) for d in candidates}
-    best = max(candidates, key=lambda d: counts[d])
-    return best if counts[best] > 0 else ","
+    header = ""
+    for enc in ("utf-8-sig", "cp1252"):
+        try:
+            with open(path, "r", encoding=enc, newline="") as f:
+                header = f.readline()
+            break
+        except Exception:
+            continue
+    best, best_fields = ",", 1
+    for d in candidates:
+        try:
+            n = len(next(csv.reader([header], delimiter=d)))
+        except Exception:
+            n = 1
+        if n > best_fields:      # first candidate to split wins; a later tie can't override
+            best, best_fields = d, n
+    return best
+
+def _dedupe_columns(cols: List[str]) -> List[str]:
+    """Make column labels unique after stripping. A trailing/leading space in one
+    header ('Part' vs 'Part ') otherwise strips to two identical 'Part' columns, and
+    row.get('Part') then returns a 2-column Series that crashes pick_text_for_line
+    with 'truth value of a Series is ambiguous'. Suffix later duplicates .1/.2 like
+    pandas' own mangling."""
+    seen: dict = {}
+    out: List[str] = []
+    for c in cols:
+        if c in seen:
+            seen[c] += 1
+            out.append(f"{c}.{seen[c]}")
+        else:
+            seen[c] = 0
+            out.append(c)
+    return out
 
 def robust_read_csv(path: str) -> pd.DataFrame:
-    # delimiter inference (restricted, single-column-safe) + BOM stripping +
-    # header normalization. dtype=str keeps label text verbatim so identifiers
-    # like "007" or "1.50" are not silently reformatted by pandas type inference.
+    # delimiter inference (restricted, single-column-safe) + BOM stripping + header
+    # normalization. dtype=str keeps label text verbatim so identifiers like "007"
+    # or "1.50" are not reformatted. keep_default_na/na_filter False: never coerce a
+    # literal cell ("NA", "NULL", "None", "N/A", ...) to NaN — for a label tool those
+    # are valid text, not "missing" (a genuinely empty cell still reads as ""). Excel's
+    # legacy "CSV (Comma delimited)" export uses the system ANSI code page, so fall
+    # back to cp1252 when utf-8 can't decode (e.g. a degree sign or accented name).
     sep = _sniff_delimiter(path)
-    df = pd.read_csv(path, sep=sep, engine="python", encoding="utf-8-sig", dtype=str)
-    df.columns = [str(c).strip() for c in df.columns]
+    read_kw = dict(sep=sep, engine="python", dtype=str,
+                   keep_default_na=False, na_filter=False)
+    try:
+        df = pd.read_csv(path, encoding="utf-8-sig", **read_kw)
+    except UnicodeDecodeError:
+        df = pd.read_csv(path, encoding="cp1252", **read_kw)
+    df.columns = _dedupe_columns([str(c).strip() for c in df.columns])
     return df
+
+def _cell(val) -> str:
+    """Coerce one looked-up cell to display text. Guards against row.get() returning
+    a Series (duplicate columns) and treats NaN/None as empty."""
+    if isinstance(val, pd.Series):
+        val = val.iloc[0] if len(val) else ""
+    return "" if pd.isna(val) else str(val)
 
 def pick_text_for_line(df: pd.DataFrame, row: pd.Series, i: int, selected_name: Optional[str]) -> str:
     # Use selected header if provided and present
     if selected_name and selected_name not in ["", "<auto>"] and selected_name in df.columns:
-        val = row.get(selected_name)
-        return "" if pd.isna(val) else str(val)
+        return _cell(row.get(selected_name))
     # Otherwise name-first candidates + positional fallback
     idx = i + 1
     candidates = [f"Line{idx}", f"Line {idx}", f"line{idx}", f"line_{idx}", f"LINE{idx}", f"LINE {idx}"]
     for name in candidates:
         if name in df.columns:
-            val = row.get(name)
-            return "" if pd.isna(val) else str(val)
+            return _cell(row.get(name))
     # positional fallback
-    val = row.iloc[i] if i < len(row) else ""
-    return "" if pd.isna(val) else str(val)
+    return _cell(row.iloc[i]) if i < len(row) else ""
 
 # ----------------------------
 # Label generator
@@ -635,8 +705,13 @@ class TagApp(ctk.CTk):
 
     def _save_all_settings(self):
         s = self._collect_settings_dict()
-        save_settings(s)
-        messagebox.showinfo("Saved", "All settings saved.")
+        if save_settings(s):
+            messagebox.showinfo("Saved", "All settings saved.")
+        else:
+            messagebox.showerror(
+                "Save failed",
+                f"Could not write settings to:\n{_settings_path()}\n\nYour changes were NOT saved.",
+            )
 
     def _restore_defaults(self):
         s = DEFAULT_SETTINGS.copy()
