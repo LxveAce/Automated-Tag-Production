@@ -4,6 +4,7 @@
 # Install: python -m pip install customtkinter pandas reportlab pillow
 import copy
 import csv
+import hashlib
 import os
 import json
 import platform
@@ -166,18 +167,53 @@ def _to_float(val) -> float:
 # ----------------------------
 # Font handling (simple/general)
 # ----------------------------
-def ensure_font(font_name: str = "Helvetica", font_path: Optional[str] = None) -> str:
+def _font_registration_name(font_path: str) -> str:
+    """A reportlab registration name that encodes the file's identity (abspath +
+    mtime), so two DIFFERENT ttf files never collide under one name — a second
+    'Arial.ttf' from another folder used to reuse the first file's glyphs because
+    the guard saw the name already registered. A changed file (new mtime) re-registers."""
+    base = os.path.splitext(os.path.basename(font_path))[0]
+    base = "".join(ch for ch in base if ch.isalnum()) or "CustomFont"
+    try:
+        stamp = "%d" % int(os.path.getmtime(font_path))
+    except Exception:
+        stamp = "0"
+    h = hashlib.sha1(("%s|%s" % (os.path.abspath(font_path), stamp)).encode("utf-8")).hexdigest()[:8]
+    return "%s_%s" % (base, h)
+
+def resolve_font(font_name: str = "Helvetica", font_path: Optional[str] = None) -> Tuple[str, bool]:
+    """Resolve the reportlab font to draw with. Returns (registered_name, used_fallback).
+
+    used_fallback is True only when a font_path was supplied but could not be registered
+    (corrupt/unsupported/locked ttf) — so the caller can warn instead of silently shipping
+    a Helvetica PDF while the UI reports success. When a valid path is given the name
+    encodes the file identity so distinct ttf files never collide in one session."""
     if font_path:
         try:
-            if not font_name or font_name.strip() == "":
-                base = os.path.basename(font_path)
-                font_name = os.path.splitext(base)[0]
-            if font_name not in pdfmetrics.getRegisteredFontNames():
-                pdfmetrics.registerFont(TTFont(font_name, font_path))
-            return font_name
+            reg = _font_registration_name(font_path)
+            if reg not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont(reg, font_path))
+            return reg, False
         except Exception:
-            return "Helvetica"
-    return (font_name or "Helvetica")
+            return "Helvetica", True
+    return (font_name or "Helvetica"), False
+
+def ensure_font(font_name: str = "Helvetica", font_path: Optional[str] = None) -> str:
+    return resolve_font(font_name, font_path)[0]
+
+def _fit_font_pt(font_name: str, text: str, size_pt: float, max_width_pt: float) -> float:
+    """Shrink size_pt (down only, never up) so `text` fits within max_width_pt at the given
+    registered font. Prevents a long CSV value from silently running off the label edge —
+    reportlab does not wrap or clip, so an over-wide line otherwise prints past the outline."""
+    if not text or size_pt <= 0 or max_width_pt <= 0:
+        return size_pt
+    try:
+        w = pdfmetrics.stringWidth(text, font_name, size_pt)
+    except Exception:
+        return size_pt
+    if w <= max_width_pt:
+        return size_pt
+    return max(1.0, size_pt * (max_width_pt / w))
 
 # ----------------------------
 # CSV intake / map
@@ -356,10 +392,13 @@ def generate_labels(
             size_pt = float(font_sizes_pts[i]) if i < len(font_sizes_pts) else 0.0
             if size_pt <= 0:
                 size_pt = 12.0
-            c.setFont(use_font, size_pt)
 
             sel_name = header_map[i] if header_map and i < len(header_map) else "<auto>"
             text = pick_text_for_line(df, row, i, sel_name)
+
+            # Fit-to-width: shrink (never grow) so a long value doesn't run past the label edge.
+            size_pt = _fit_font_pt(use_font, text, size_pt, label_width * 0.94)
+            c.setFont(use_font, size_pt)
 
             # NEW: set per-line text color
             r, g, b = rgb_for_line(i)
@@ -520,7 +559,7 @@ class TagApp(ctk.CTk):
         self.preview_switch.grid(row=12, column=5, sticky="w", padx=pad_x, pady=pad_y)
         self.preview_label = ctk.CTkLabel(self.scroll, text="")
         self.preview_label.grid(row=13, column=0, columnspan=8, sticky="ew", padx=pad_x, pady=pad_y)
-        ctk.CTkButton(self.scroll, text="Refresh Preview", command=self._render_preview).grid(row=14, column=0, padx=pad_x, pady=pad_y)
+        ctk.CTkButton(self.scroll, text="Refresh Preview", command=self._refresh_preview).grid(row=14, column=0, padx=pad_x, pady=pad_y)
 
         # Actions / Templates
         ctk.CTkButton(self.scroll, text="Generate PDF", command=self._run).grid(row=15, column=0, padx=pad_x, pady=pad_y)
@@ -537,12 +576,15 @@ class TagApp(ctk.CTk):
         old_is_inches = self.use_inches.get()
         if new_is_inches != old_is_inches:
             factor = 72.0  # 72 pt/in
+            # Convert stored values to preserve physical size. Inches->Points multiplies
+            # by 72; Points->Inches divides by 72. (Was inverted: a single toggle scaled
+            # every font size / height by 72x or 1/72x and silently corrupted the output.)
             for v in self.font_sizes_vars:
                 num = _to_float(v)
-                v.set(str(num / factor) if old_is_inches else str(num * factor))
+                v.set(str(num * factor) if old_is_inches else str(num / factor))
             for v in self.heights_vars:
                 num = _to_float(v)
-                v.set(str(num / factor) if old_is_inches else str(num * factor))
+                v.set(str(num * factor) if old_is_inches else str(num / factor))
             self.use_inches.set(new_is_inches)
             self._render_preview()
 
@@ -598,6 +640,10 @@ class TagApp(ctk.CTk):
         self._render_preview()
 
     def _refresh_mapping_ui(self, preload: Optional[dict] = None):
+        # The csv_path write-trace rebuilds this UI on every keystroke; snapshot the
+        # user's current per-line selections so a rebuild doesn't wipe them back to
+        # '<auto>'. Only a selection whose column no longer exists falls back.
+        prior = [v.get() for v in getattr(self, "header_map_vars", [])]
         for child in self.mapping_frame.winfo_children():
             child.destroy()
         self.header_map_vars = []
@@ -616,9 +662,12 @@ class TagApp(ctk.CTk):
         for i in range(int(_to_float(self.num_lines)) or 1):
             ctk.CTkLabel(self.mapping_frame, text=f"Line {i+1} →").grid(row=i, column=0, sticky="e", padx=6, pady=4)
             var = tk.StringVar()
-            # preload mapped value if available
+            # preload mapped value if available; else keep the user's prior choice when it
+            # still points at an existing column (or '<auto>'); else fall back to '<auto>'.
             if preload and "header_map" in preload and i < len(preload["header_map"]):
                 var.set(preload["header_map"][i])
+            elif i < len(prior) and (prior[i] == "<auto>" or prior[i] in self.column_names):
+                var.set(prior[i])
             else:
                 var.set("<auto>")
             self.header_map_vars.append(var)
@@ -666,8 +715,17 @@ class TagApp(ctk.CTk):
             self.font_path.set(path)
 
     def _pick_color(self, var: tk.StringVar):
-        initial = var.get().strip() or "#000000"
-        _, hexval = colorchooser.askcolor(color=initial, title="Pick a color")
+        # The hex field is free text: a partial/garbage value ("12345", "notacolor")
+        # passed as -initialcolor raises an unhandled TclError before the dialog opens.
+        # Only seed the picker with a valid #hex; otherwise start from black, and guard.
+        raw = var.get().strip()
+        digits = raw.lstrip("#")
+        valid = len(digits) in (3, 6) and all(c in "0123456789abcdefABCDEF" for c in digits)
+        initial = ("#" + digits) if valid else "#000000"
+        try:
+            _, hexval = colorchooser.askcolor(color=initial, title="Pick a color")
+        except tk.TclError:
+            _, hexval = colorchooser.askcolor(color="#000000", title="Pick a color")
         if hexval:
             var.set(hexval)
 
@@ -812,6 +870,9 @@ class TagApp(ctk.CTk):
             line_colors_hex = [v.get().strip() or "#000000" for v in self.line_color_vars]
 
             self._save_all_settings()
+            # Resolve up-front so we can tell the user when a requested TTF could not be
+            # loaded — otherwise the whole PDF prints in Helvetica under a "Success" dialog.
+            _, font_fallback = resolve_font(font_name or "Helvetica", font_path)
             generate_labels(
                 csv, pdf, sizes_pts, heights_pts,
                 font_name=font_name or "Helvetica",
@@ -828,9 +889,23 @@ class TagApp(ctk.CTk):
                 header_map=header_map,
                 line_colors_hex=line_colors_hex,  # NEW
             )
-            messagebox.showinfo("Success", f"PDF generated:\n{pdf}")
+            if font_fallback:
+                messagebox.showwarning(
+                    "Font not loaded",
+                    f"The custom TTF could not be loaded:\n{font_path}\n\n"
+                    f"The PDF was generated in Helvetica instead:\n{pdf}",
+                )
+            else:
+                messagebox.showinfo("Success", f"PDF generated:\n{pdf}")
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
+    def _refresh_preview(self):
+        # The 'Refresh Preview' button must re-read the CSV from disk: _render_preview
+        # caches self.df and only reloads it when None or on a path change, so without
+        # this an on-disk edit to the same file would never show. Invalidate, then render.
+        self.df = None
+        self._render_preview()
 
     # Live preview using CTkImage (no HiDPI warning)
     def _render_preview(self):
@@ -935,7 +1010,20 @@ class TagApp(ctk.CTk):
                 except Exception:
                     font = ImageFont.load_default()
 
-                y_px = center_y_px + int((heights_pts[i] if i < len(heights_pts) else 0.0) * dpi / 72.0)
+                # PIL's origin is top-left (y grows down); the PDF (reportlab) origin is
+                # bottom-left (y grows up) and adds the offset. Subtract here so a positive
+                # per-line height moves the line the SAME direction in both. (Was inverted.)
+                y_px = center_y_px - int((heights_pts[i] if i < len(heights_pts) else 0.0) * dpi / 72.0)
+
+                # Fit-to-width mirror of the PDF path: shrink an overflowing truetype line so
+                # a long value doesn't run past the label edge (rough thumbnail for the default font).
+                try:
+                    max_w = img_w * 0.94
+                    text_w = draw.textlength(texts[i], font=font)
+                    if text_w > max_w > 0 and font_path and os.path.exists(font_path):
+                        font = ImageFont.truetype(font_path, size=max(6, int(size_px * (max_w / text_w))))
+                except Exception:
+                    pass
 
                 # NEW: per-line color
                 hexv = (self.line_color_vars[i].get().strip() if i < len(self.line_color_vars) else "#000000")

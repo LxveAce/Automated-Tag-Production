@@ -139,5 +139,75 @@ def test_corrupt_settings_backed_up_not_silently_lost(tag, tmp_path, monkeypatch
     assert not p.exists()                                     # canonical path freed for a clean save
 
 
+# --------------------------------------------------------------------------
+# TAG (fonts) — resolve_font identity naming + fallback signalling
+# --------------------------------------------------------------------------
+import os
+import shutil
+
+_WIN_TTF = r"C:\Windows\Fonts\arial.ttf"
+
+
+def test_resolve_font_no_path_passes_name_through(tag):
+    assert tag.resolve_font("Times-Roman", None) == ("Times-Roman", False)
+    assert tag.resolve_font("", None) == ("Helvetica", False)
+
+
+def test_ensure_font_backward_compatible(tag):
+    assert tag.ensure_font("Courier", None) == "Courier"
+
+
+def test_resolve_font_reports_fallback_on_bad_ttf(tag, tmp_path):
+    bad = tmp_path / "notreally.ttf"
+    bad.write_bytes(b"this is definitely not a font file")
+    name, fallback = tag.resolve_font("", str(bad))
+    assert fallback is True
+    assert name == "Helvetica"
+
+
+@pytest.mark.skipif(not os.path.exists(_WIN_TTF), reason="needs a system TTF")
+def test_resolve_font_distinct_files_never_collide(tag, tmp_path):
+    # Two DIFFERENT files with the same basename ("Arial.ttf") — and both requested under
+    # the same "Helvetica" name — must register under DISTINCT names so the second file's
+    # glyphs are not silently reused from the first (the in-session cache collision).
+    a = tmp_path / "dirA" / "Arial.ttf"
+    b = tmp_path / "dirB" / "Arial.ttf"
+    a.parent.mkdir()
+    b.parent.mkdir()
+    shutil.copy(_WIN_TTF, a)
+    shutil.copy(_WIN_TTF, b)
+    na, fa = tag.resolve_font("Helvetica", str(a))
+    nb, fb = tag.resolve_font("Helvetica", str(b))
+    assert fa is False and fb is False
+    assert na != nb
+    assert na != "Helvetica" and nb != "Helvetica"
+
+
+# --------------------------------------------------------------------------
+# TAG (render) — _fit_font_pt shrink-to-width
+# --------------------------------------------------------------------------
+def test_fit_font_pt_shrinks_overflow_and_leaves_short_text(tag):
+    from reportlab.pdfbase import pdfmetrics
+    text = "X" * 40
+    # 40 chars at 72pt is far wider than a 200pt box -> shrink to fit (well above the 1pt floor).
+    fitted = tag._fit_font_pt("Helvetica", text, 72.0, 200.0)
+    assert 1.0 < fitted < 72.0
+    assert pdfmetrics.stringWidth(text, "Helvetica", fitted) <= 200.0 + 0.5
+    # Short text within the box is never grown.
+    assert tag._fit_font_pt("Helvetica", "Hi", 12.0, 500.0) == 12.0
+    # Degenerate inputs pass through unchanged.
+    assert tag._fit_font_pt("Helvetica", "", 12.0, 100.0) == 12.0
+    assert tag._fit_font_pt("Helvetica", "Hi", 12.0, 0.0) == 12.0
+
+
+def test_generate_labels_still_ok_with_overflowing_value(tag, tmp_path):
+    csv = tmp_path / "long.csv"
+    csv.write_text("Line1,Line2\n" + "M" * 300 + ",short\n", encoding="utf-8")
+    out = tmp_path / "long.pdf"
+    tag.generate_labels(str(csv), str(out), [72, 72], [0, 0],
+                        label_width_in=2, label_height_in=1)
+    assert out.exists() and out.stat().st_size > 0
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
