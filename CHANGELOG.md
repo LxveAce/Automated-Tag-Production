@@ -38,8 +38,6 @@ The application version is single-sourced as `__version__` in
 - The Bootstrapper build script now points `APP_PY` at the real
   `-Source Code` source filename, so the one-click PyInstaller build can find
   the source.
-- Corrected stale references in `This is what i do.txt`: the nonexistent
-  `build_exe.bat` and the run command missing the `-Source Code` suffix.
 - `robust_read_csv` now reads every column as text (`dtype=str`), so label
   identifiers such as `007` or `1.50` print verbatim instead of being
   reformatted (to `7` / `1.5`) by pandas type inference; blank cells still
@@ -54,6 +52,11 @@ The application version is single-sourced as `__version__` in
   an explicit one-page-per-row `showPage()`. Behavior-preserving: the PDF page
   size already equals the label size, so exactly one label was ever drawn per
   page.
+
+### Removed
+- `This is what i do.txt` — an informal setup/usage note fully superseded by the
+  overhauled `README.md` (install, CSV format, and the one-click EXE build are
+  all documented there).
 
 ## [5.0.0] - 2025-12-23
 
