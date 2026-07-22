@@ -1,0 +1,29 @@
+name: tests
+
+# Run the pytest suite (tests/test_core.py, test_audit_fixes.py, test_gui_fixes.py) on every push / PR so
+# a fixed regression can't silently re-land. Windows because the app is a Windows Tk/CustomTkinter tool and
+# the tests load the GUI module by path (tests/conftest.py) — Tk imports work on a Windows runner without a
+# virtual display. The app is only instantiated under `if __name__ == "__main__"`, so loading the module
+# for tests never opens a window.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run tests
+        run: python -m pytest -q
