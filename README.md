@@ -35,7 +35,7 @@ It's a Windows desktop app with a CustomTkinter GUI, built on ReportLab (PDF), p
 - **CSV parsing that doesn't mangle your data** — auto-detects the delimiter (comma, semicolon, tab, or pipe), strips a UTF-8 BOM, and reads every cell as text so identifiers like `007` or `1.50` print verbatim instead of becoming `7` or `1.5`.
 - **Live preview** — a 150 DPI canvas updates as you type; flip on "Preview from CSV" to render the actual first row.
 - **JSON templates** — save and load the full settings set (geometry, fonts, colors, mapping) for reuse across jobs.
-- **Settings persistence** — the last-used settings save to `%APPDATA%\MMRTagTool\settings.json` on generate.
+- **Settings persistence** — the last-used settings save to `%APPDATA%\AutomatedTagCreator\settings.json` on generate.
 - **One-click EXE build** — ships as plain Python source; the included bootstrapper packages it into a standalone Windows executable with PyInstaller.
 
 ---

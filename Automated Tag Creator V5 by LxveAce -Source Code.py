@@ -58,11 +58,13 @@ DEFAULT_SETTINGS = {
 }
 
 def _settings_dir() -> str:
+    # Per-user config dir named after the app. (A missing settings.json is treated as a clean first
+    # run by load_settings(), so a fresh install just opens with the defaults.)
     if platform.system() == "Windows":
         base = os.getenv("APPDATA", os.path.expanduser("~"))
-        folder = os.path.join(base, "MMRTagTool")
+        folder = os.path.join(base, "AutomatedTagCreator")
     else:
-        folder = os.path.join(os.path.expanduser("~"), ".mmr_tag_tool")
+        folder = os.path.join(os.path.expanduser("~"), ".automated_tag_creator")
     os.makedirs(folder, exist_ok=True)
     return folder
 

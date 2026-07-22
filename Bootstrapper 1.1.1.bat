@@ -9,12 +9,12 @@ set "PYTHONNOUSERSITE=1"
 
 REM Non-synced build locations (avoid OneDrive)
 if not defined LOCALAPPDATA set "LOCALAPPDATA=%USERPROFILE%\AppData\Local"
-set "BUILD_ROOT=%LOCALAPPDATA%\MMRTagTool\pyi"
+set "BUILD_ROOT=%LOCALAPPDATA%\AutomatedTagCreator\pyi"
 set "WORK_DIR=%BUILD_ROOT%\work"
 set "DIST_DIR=%BUILD_ROOT%\dist"
 set "SPEC_DIR=%BUILD_ROOT%\spec"
 
-echo === MMR Tag Tool one-click build (OneDrive-safe) ===
+echo === Automated Tag Creator one-click build (OneDrive-safe) ===
 
 where python >nul 2>nul
 if errorlevel 1 (

@@ -19,6 +19,13 @@ The application version is single-sourced as `__version__` in
   `generate_labels` page-count and empty-CSV invariants, with a
   `requirements-dev.txt`.
 
+### Changed
+- The per-user settings folder is now named after the app
+  (`%APPDATA%\AutomatedTagCreator` on Windows, `~/.automated_tag_creator`
+  elsewhere), and the bootstrapper builds under a matching name. If you used an
+  earlier build, your last-used settings won't carry over — the app opens with
+  its defaults and re-saves on the next generate.
+
 ### Fixed
 - `parse_hex_color` (and the live-preview color parser) now return the
   documented black fallback for non-hex characters (e.g. `#GGGGGG`) instead of
