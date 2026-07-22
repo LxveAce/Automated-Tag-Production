@@ -22,7 +22,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 # --------------------
 # App metadata (single source of truth for name/version)
 # --------------------
-__version__ = "5.0.0"
+__version__ = "5.1.0"
 APP_TITLE = "Automated Tag Creator V5 by LxveAce"
 
 # --------------------

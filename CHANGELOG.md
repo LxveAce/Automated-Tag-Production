@@ -8,6 +8,8 @@ The application version is single-sourced as `__version__` in
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-07-22
+
 ### Added
 - `.gitignore` covering Python caches, virtual environments, and PyInstaller
   build artifacts (`build/`, `dist/`, `*.spec`, `version.txt`).
